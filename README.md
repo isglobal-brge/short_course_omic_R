@@ -5,8 +5,8 @@ The course include four tutorials that can be found here:
 
 - [Dealing with omic data in Bioconductor](https://rpubs.com/jrgonzalezISGlobal/omicBioC)
 - [Genetic association studies](https://rpubs.com/jrgonzalezISGlobal/SNPassoc)
-- [Transcriptomic and Epigenomic data analyses]
-- [Enrichment analysis]
+- [Transcriptomic and Epigenomic data analyses](https://rpubs.com/jrgonzalezISGlobal/transcriptomic_analyses)
+- [Enrichment analysis](https://rpubs.com/jrgonzalezISGlobal/enrichment)
 
 
 # Prerequisites
