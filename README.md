@@ -4,7 +4,9 @@ This is a short course on omic data analysis with R (2 hours) that is part of th
 The course include three tutorials that can be found here:
 
 - [Dealing with omic data in Bioconductor]
-- [Dealing with omic data in Bioconductor]
+- [Genetic association studies]
+- [Transcriptomic and Epigenomic data analyses]
+- [Enrichment analysis]
 
 
 # Prerequisites
@@ -23,9 +25,11 @@ Recommended readings from this wiki:
 Open RStudio and execute these R instructions 
 
 ```
-install.packages(c("readr", "dplyr", "ssh", "resourcer", "DSOpal", "ggrepel"))
-install.packages("dsBaseClient", repos = c("https://cran.obiba.org"))
-devtools::install_github("isglobal-brge/dsOmicsClient")
+install.packages("BiocManager")
+BiocManager::install(c("SummarizedExperiment", "GenomicRanges", "GEOquery", "limma",
+                       "MEAL", "EnhancedVolcano", "tweeDEseqCountData", "edgeR",
+                       "breastCancerVDX", "airway", "org.Hs.eg.db", "clusterProfiler",
+                       "enrichplot"))                        
 ```
 
 Maybe for those working in Windows [Rtools](https://cran.r-project.org/bin/windows/Rtools/) could be needed.
