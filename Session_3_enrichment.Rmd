@@ -1,0 +1,461 @@
+---
+title: "Enrichment Analysis"
+author: 
+  - name: Juan R Gonzalez
+    affiliation: 
+    - Bioinformatics Research Group in Epidemiology, Barcelona Institute for Global Health, Spain
+    email: juanr.gonzalez@isglobal.org
+date: "May, 2021"
+output:
+  BiocStyle::html_document:
+    toc: yes
+    toc_depth: 3
+  BiocStyle::pdf_document:
+    fig_caption: yes
+    toc_depth: 3
+abstract: Overview of existing methods for enrichment analysis of gene expression data with regard to functional gene sets and pathways. Functionality for differential expression analysis, set- and network-based enrichment analysis, along with visualization and exploration of results. 
+---
+
+```{r style, echo = FALSE, results = 'asis'}
+options(width=120)
+knitr::opts_chunk$set(cache=TRUE, fig.align = TRUE, 
+                      warning = FALSE,
+                      message = FALSE, comment = "")
+```
+
+# Gettig started
+This document can be reproduced by using the R code and the  data (for illustrating purposes and for the excersises) that are available here: https://github.com/isglobal-brge/short_course_omic_R
+
+# Introduction 
+
+Test whether known biological functions or processes are over-represented
+(= enriched) in an experimentally-derived gene list, e.g. a list of
+differentially expressed (DE) genes. See
+[Goeman and Buehlmann, 2007](https://doi.org/10.1093/bioinformatics/btm051) for a critical review.
+
+
+A convenient way to find DE gene sets is by detecting the so-called *functional enrichment* in two steps. First, we search for DE genes. Second, we verify whether these DE genes belong to the gene set in a proportion that exceeds any expectation of finding that number of genes in that gene set by chance alone. A straightforward way to assess this hypothesis consists of applying a hypergeometric test, which in fact corresponds to the one-tailed Fisher's exact test, following the so-called **urn model**.
+
+A *hypergeometric test* assesses whether a number of successes in a          sequence of draws follows a hypergeometric distribution. The *hypergeometric distribution*  is a discrete probability distribution that describes the number of successes in a sequence of draws from a finite population without replacement, just as the binomialdistribution describes the number of successes for draws with replacement. In our context this involves the following quantities:
+
+|                   |  DE |  non-DE | total |
+|-------------------|:---:|:-------:|:-----:|
+| Insiside Gene Set |  k  |   m-k   |   m   |
+| Outside Gene Set  | n-k | N+k-n-m |  N-m  |
+| total             |  n  |   N-m   |   N   |
+
+
+where:
+
+- $N$ is the total number of genes considered (gene universe).
+- $n$ is the number of DE genes.
+- $m$ is the number of genes in the gene set.
+- $k$ is the number of DE genes in the gene set.
+
+
+Given these quantities and a random variable $X$ representing the
+possible outcomes of a hypergeometric process, the probability of
+getting exactly $k$ genes inside a particular gene set is given by
+
+$$\textrm{Pr}(X=k)=\frac{{m\choose k} {N-m\choose n-k}}{{N\choose n}}$$
+Therefore, the probability of getting $k$ or more genes inside a
+particular gene set, as a hypergeometric random process, is
+
+$$\textrm{Pr}(X >= k)=\sum_{x=k}^n \frac{{m\choose x} {N-m\choose n-x}}{{N\choose n}}$$
+This probability is the quantity being used as surrogate for the
+enrichment of the functional gene set with our list of DE genes,
+where the lower the value the less likely that we observe those
+$k$ genes inside the given gene set by pure chance and thus the
+more enriched that this gene set is enriched with our DE genes.
+
+
+**Example**: Transcriptomic study, in which 12,671 genes have been tested for
+differential expression between two sample conditions and 529 genes were found
+DE. Among the DE genes, 28 are annotated to a specific functional gene set (or pathway), which contains in total 170 genes. This setup corresponds to a 2x2 contingency table,
+
+
+```{r deTbl}
+deTable <-  matrix(c(28, 142, 501, 12000),
+            nrow = 2,
+            dimnames = list(DE=c("yes","no"),
+                            GeneSet=c("in","out")))
+              
+deTable
+```
+
+where the overlap of 28 genes can be assessed based on the hypergeometric distribution.
+This corresponds to a one-sided version of Fisher's exact test, yielding here a
+significant enrichment.
+
+```{r fisher}
+fisher.test(deTable, alternative = "greater")
+```
+
+This basic principle is at the foundation of major public and commercial enrichment
+tools such as [DAVID](https://david.ncifcrf.gov/) and 
+[Pathway Studio](https://www.pathwaystudio.com).
+
+Although gene set enrichment methods have been primarily developed and applied
+on transcriptomic data, they have recently been modified, extended and applied
+also in other fields of genomic and biomedical research. This includes novel
+approaches for functional enrichment analysis of proteomic and metabolomic data
+as well as genomic regions and disease phenotypes,
+[Lavallee and Yates, 2016](https://doi.org/10.1002/0471250953.bi1328s53),
+[Chagoyen et al., 2016](https://doi.org/10.1007/978-1-4939-3572-7_20),
+[McLean et al., 2010](https://doi.org/10.1038/nbt.1630),
+[Ried et al., 2012](https://doi.org/10.1002/gepi.21617).
+
+
+--------------------------------------------------
+
+**EXERCISE**: Library `tweeDEseqCountData` contains data corresponding to an RNA-seq experiment described in  Pickrell et al. (2010). Data correspond to lymphoblastoid cell lines about 69 non-related Nigerian individuals. This information as well as phenotypic data is available as an object of class `eSet` called `pickrell.eset` that can be loaded after typing:
+
+```
+data(pickrell)
+```
+
+1. Use limma-voom method to detect those genes that are differentially expressed (DE) between males and females (variale `gender`).
+
+2. Select those genes that are DE at 5% FDR with a minimum fold-change of 1.5
+
+3. Create a gene set of sex-especific genes by
+
+```
+geneUniverse <- featureNames(pickrell.eset)
+geneSex <- unique(intersect(geneUniverse,
+                  c(msYgenes, XiEgenes)))
+```
+
+and test whether the list of DE genes is enriched in that gene set.
+
+--------------------------------------------------
+
+
+# Gene expression-based enrichment analysis
+
+This methodology can be extended to the analysis of multiple gene sets available in different databases such as GO or KEGG among others. Next sections illustrate how to perform such analyses using different BioC packages.
+
+## A primer on terminology, existing methods & statistical theory
+
+**Gene sets, pathways & regulatory networks**
+
+Gene sets are simple lists of usually functionally related genes without further
+specification of relationships between genes.
+
+Pathways can be interpreted as specific gene sets, typically representing a
+group of genes that work together in a biological process. Pathways are commonly divided in metabolic and signaling pathways.
+Metabolic pathways such as glycolysis represent biochemical substrate conversions
+by specific enzymes. Signaling pathways such as the MAPK signaling pathway describe 
+signal transduction cascades from receptor proteins to transcription factors, 
+resulting in activation or inhibition of specific target genes.
+
+Gene regulatory networks describe the interplay and effects of regulatory
+factors (such as transcription factors and microRNAs) on the expression of their
+target genes.
+
+**Resources**
+
+[GO](http://www.geneontology.org), [KEGG](http://www.genome.jp/kegg) and [MSigDB](http://software.broadinstitute.org/gsea/msigdb/collections.jsp)
+annotations are most frequently used for the enrichment analysis of 
+functional gene sets. Despite an increasing number of gene set and pathway 
+databases, they are typically the first choice due to their long-standing 
+curation and availability for a wide range of species.
+
+*GO*: The Gene Ontology (GO) consists of three major sub-ontologies that classify
+gene products according to molecular function (MF), biological process (BP) and 
+cellular component (CC). Each ontology consists of GO terms that define MFs, BPs
+or CCs to which specific genes are annotated. The terms are organized in a
+directed acyclic graph, where edges between the terms represent
+relationships of different types. They relate the terms according to a parent-child
+scheme, i.e. parent terms denote more general entities, whereas child terms represent
+more specific entities.
+
+*KEGG*: The Kyoto Encyclopedia of Genes and Genomes (KEGG) is a collection of 
+manually drawn pathway maps representing molecular interaction and reaction networks.
+These pathways cover a wide range of biochemical processes that can be divided in
+7 broad categories: metabolism, genetic and environmental information processing,
+cellular processes, organismal systems, human diseases, and drug development. 
+Metabolism and drug development pathways differ from pathways of the other 5
+categories by illustrating reactions between chemical compounds.
+Pathways of the other 5 categories illustrate molecular interactions between
+genes and gene products. 
+
+*MSigDB*: Molecular Signatures Database (MSigDB) are divided into 8 major collections, and several sub-collections. These include: 
+
+  - *H: hallmark gene sets*: Hallmark gene sets summarize and represent specific well-defined biological states or processes and display coherent expression.
+
+  - *C1: positional gene sets*: Gene sets corresponding to each human chromosome and each cytogenetic band that has at least one gene.
+  
+  - *C2: curated gene sets*: Gene sets curated from various sources such as online pathway databases, the biomedical literature, and knowledge of domain experts. It contains 5 sub-collections.
+
+  - *C3 motif gene sets*: Gene sets representing potential targets of regulation by transcription factors or microRNAs. It has 2 sub-collections.
+  
+  - *C4 computational gene sets*: Computational gene sets defined by mining large collections of cancer-oriented microarray data. It has 4 sub-collections. 
+  
+  - *C5 GO gene sets*: Gene sets that contain genes annotated by the same GO term. The C5 collection is divided into three sub-collections based on GO ontologies: BP, CC, and MF.
+  
+  - *C6 oncogenic signatures*: Gene sets that represent signatures of cellular pathways which are often dis-regulated in cancer.
+  
+  - *C7 inmunologic signatures*: Gene sets that represent cell states and perturbations within the immune system.
+  
+  
+**Statistical approaches**
+
+The two predominantly used enrichment methods are:
+
+- Overrepresentation analysis (ORA), testing whether a gene set contains 
+disproportional many genes of significant expression change, based on the 
+procedure outlined in the first section.
+- Gene set enrichment analysis (GSEA), testing whether genes of a gene set 
+accumulate at the top or bottom of the full gene vector ordered by direction
+and magnitude of expression change
+[Subramanian et al., 2005](https://doi.org/10.1073/pnas.0506580102). However, the term *gene set enrichment analysis* nowadays subsumes a general 
+strategy implemented by a wide range of methods 
+[Huang et al., 2009](https://doi.org/10.1093/nar/gkn923). 
+Those methods have in common the same goal, although approach and statistical
+model can vary substantially
+[Goeman and Buehlmann, 2007](https://doi.org/10.1093/bioinformatics/btm051),
+[Khatri et al., 2012](https://doi.org/10.1371/journal.pcbi.1002375).
+
+To better distinguish from the specific method, some authors use the term
+*gene set analysis* to denote the general strategy.
+However, there is also a specific method from
+[Efron and Tibshirani, 2007](https://doi.org/10.1214/07-AOAS101) of this name.
+
+Goeman and Buehlmann further raise several critical issues concerning the 2x2 ORA:
+
+- rather arbitrary classification of genes in DE / not DE
+- based on gene sampling, although sampling of subjects is appropriate 
+- unrealistic independence assumption between genes, resulting in highly
+anti-conservative *p*-values
+
+With regard to these statistical concerns, GSEA is considered superior:
+
+- takes all measured genes into account 
+- subject sampling via permutation of class labels  
+- the incorporated permutation procedure implicitly accounts for correlations
+between genes
+
+However, the simplicity and general applicability of ORA is unmet by subsequent
+methods improving on these issues. For instance, GSEA requires the expression data
+as input, which is not available for gene lists derived from other experiment types.
+On the other hand, the involved sample permutation procedure has been proven 
+inaccurate and time-consuming
+[Efron and Tibshirani, 2007](https://doi.org/10.1214/07-AOAS101),
+[Phipson and Smyth, 2010](https://doi.org/10.2202/1544-6115.1585),
+[Larson and Owen, 2015](https://doi.org/10.1186/s12859-015-0571-7).
+
+
+[Khatri et al., 2012](https://doi.org/10.1371/journal.pcbi.1002375) have taken a
+slightly different approach by classifying methods along the timeline of 
+development into three generations:
+
+1. Generation: ORA methods based on the 2x2 contingency table test,
+2. Generation: functional class scoring (FCS) methods such as GSEA, which compute
+gene set (= functional class) scores by summarizing per-gene DE statistics,
+3. Generation: topology-based methods, explicitly taking into account interactions
+between genes as defined in signaling pathways and gene regulatory networks
+([Geistlinger et al., 2011](https://doi.org/10.1093/bioinformatics/btr228) for an example).
+
+Although topology-based (also: network-based) methods appear to be most realistic,
+their straightforward application can be impaired by features that are not-detectable
+on the transcriptional level (such as protein-protein interactions) and insufficient network knowledge
+[Geistlinger et al., 2013](https://doi.org/10.1093/nar/gkt631),
+[Bayerlova et al., 2015](https://doi.org/10.1186/s12859-015-0751-5).
+
+Given the individual benefits and limitations of existing methods,
+cautious interpretation of results is required to derive valid conclusions. 
+Whereas no single method is best suited for all application scenarios, applying multiple methods can be beneficial.
+This has been shown to filter out spurious hits of individual methods, thereby reducing the outcome to gene sets accumulating evidence from different methods
+[Geistlinger et al., 2016](https://doi.org/10.1186/s12859-016-0884-1),
+[Alhamdoosh et al., 2017](https://doi.org/10.1093/bioinformatics/btw623).
+
+
+
+## Analysis using `clusterProfiler` 
+
+[clusterProfiler]() performs statistical analysis and visualization of functional profiles for genes and gene clusters. It includes GO, KEEG and a general function to perform ORA for any database such as MSigDB or [DisGeNET](http://www.disgenet.org/) among others.
+
+
+Let us illustrate how to perform ORA (enrichment analysis) using RNAseq data.  Our interest is to compare gene expression between cell lines that have been treated with dexamethasone or not. Data are available in the `airway` Bioconductor package.
+
+```{r pdataAirway}
+library(airway)
+data(airway)
+table(airway$dex)
+``` 
+
+First, we need to perform DE analysis.
+
+
+```{r DE_airway}
+library(edgeR)
+dge <- DGEList(assay(airway), group = airway$dex)
+dge <- calcNormFactors(dge)
+mm <- model.matrix( ~ group, data=dge$samples)
+
+keep.exprs <- filterByExpr(dge)
+dge.filt <- dge[keep.exprs,]
+dim(dge.filt)
+
+mm <- model.matrix( ~ group, data=dge.filt$samples)
+v <- voom(dge.filt, design = mm, plot = TRUE)
+
+fit <- lmFit(v, mm)
+fit <- eBayes(fit)
+topTable(fit)
+```
+
+We call DE genes with a minimum 2-fold change of expression at
+a maximum FDR of 5%:
+
+```{r de_search}
+tt <- topTable(fit, n=Inf)
+mask <- tt$adj.P.Val < 0.05 &
+        abs(tt$logFC) > log2(2)
+deGenes <- rownames(tt[mask, ])
+head(deGenes)
+length(deGenes)
+```
+
+The gene universe is obtained by:
+
+```{r gene_universe}
+geneUniverse <- rownames(tt)
+length(geneUniverse)
+```
+
+In order to asses  functional enrichment, both DE gene list and gene universe must be annotated in Entrez IDs:
+
+```{r genes_to_entrez}
+library(org.Hs.eg.db)
+deGenes <- unlist(mget(deGenes, envir=org.Hs.egENSEMBL2EG,
+                       ifnotfound = NA))
+
+geneUniverse <- unlist(mget(geneUniverse, envir=org.Hs.egENSEMBL2EG,
+                       ifnotfound = NA))
+``` 
+
+
+
+The GO enrichment analysis using `clusterProfiler` is performed by
+
+
+```{r GO_clusterProfiler}
+library(clusterProfiler)
+ans.go <- enrichGO(gene = deGenes, ont = "BP",
+                   OrgDb ="org.Hs.eg.db",
+                   universe = geneUniverse,
+                   readable=TRUE,
+                   pvalueCutoff = 0.05)
+tab.go <- as.data.frame(ans.go)
+tab.go<- subset(tab.go, Count>5)
+tab.go[1:5, 1:6]
+```
+
+And the KEEG enrichment with:
+
+```{r KEGG_clusterProfiler}
+ans.kegg <- enrichKEGG(gene = deGenes,
+                       organism = 'hsa',
+                       universe = geneUniverse,
+                       pvalueCutoff = 0.05)
+tab.kegg <- as.data.frame(ans.kegg)
+tab.kegg<- subset(tab.kegg, Count>5)
+tab.kegg[1:5, 1:6]
+```
+
+
+For external databases such as DisGeNET or MSigDB collections, databases must be imported into R. This is how DisGeNET is imported into R
+
+```{r disgenet_import}
+gda <- read.delim("data/curated_gene_disease_associations.tsv.gz")
+disease2gene <- gda[, c("diseaseId", "geneId")]
+disease2name <- gda[, c("diseaseId", "diseaseName")]
+```
+
+
+Then, the enrichment is perform using `enricher` function:
+
+```{r disgenet_clusterProfiler}
+ans.dis <- enricher(deGenes, TERM2GENE=disease2gene,
+                    TERM2NAME=disease2name)
+tab.dis <- as.data.frame(ans.dis)
+tab.dis<- subset(tab.dis, Count>5)
+tab.dis[,1:6]
+```
+
+
+This is the R code for transcription factors which is one of the sub-collection of C3 available at  [MSigDb](http://software.broadinstitute.org/gsea/msigdb) for
+additional gene set collections.
+
+
+```{r c3_tf}
+c3.tf <- read.gmt("c:/Juan/CREAL/HELIX/pathways/GSEA/c3.tft.v6.2.entrez.gmt")
+
+ans.tf <- enricher(deGenes, TERM2GENE=c3.tf)
+tab.tf <- as.data.frame(ans.tf)
+tab.tf<- subset(tab.tf, Count>5)
+tab.tf[1:5,1:5]
+```
+
+## Visualization
+
+All analyses performed with `clusterProfiler` can be visualize by different plots:
+
+```{r plot}
+library(enrichplot)
+p1 <- barplot(ans.dis, showCategory=10)
+p1
+```
+
+```{r plot2, fig.height=12}
+p2 <- dotplot(ans.kegg, showCategory=20) + ggtitle("KEGG")
+p3 <- dotplot(ans.dis, showCategory=20) + ggtitle("Disease")
+plot_grid(p2, p3, nrow=2)
+```
+
+```{r plot3}
+p4 <- upsetplot(ans.dis)
+p4
+```
+
+```{r plot4}
+p5 <- emapplot(ans.kegg)
+p5
+```
+
+```{r plot5, fig.height=13, fig.width=10}
+cowplot::plot_grid(p1, p3, p5, ncol=2, labels=LETTERS[1:3])
+```
+
+
+
+--------------------------------------------------
+
+**EXERCISE**: The file `data_exercises/GSE18123.Rdata` contains data corresponing to the GEO accession number GSE18123. This dataset was used to test whether peripheral blood gene expression profiles could be used as a molecular diagnostic tool for distinguishing children with Autistic Spectrum Disorder (ASD) from controls by performing peripheral blood gene expression profiling on 170 patients with ASD and 115 controls collected from Boston area hospitals.
+
+1. Determine those genes that are differentially expressed between CONTROLs and AUTISM (variable `group`).
+
+2. Perform an enrichment analysis of GO, KEGG and DisGeNET databases.
+
+--------------------------------------------------
+
+
+```{r sessionInfo}
+sessionInfo()
+```
+
+[EnrichmentBrowser]: https://bioconductor.org/packages/EnrichmentBrowser
+[ALL]: https://bioconductor.org/packages/ALL
+[hgu95av2.db]: https://bioconductor.org/packages/hgu95av2.db
+[airway]: https://bioconductor.org/packages/airway
+[regioneR]: https://bioconductor.org/packages/regioneR
+[BSgenome.Hsapiens.UCSC.hg19.masked]: https://bioconductor.org/packages/BSgenome.Hsapiens.UCSC.hg19.masked
+[MultiAssayExperiment]: https://bioconductor.org/packages/MultiAssayExperiment
+[readr]: https://cran.r-project.org/package=readr
+[mogsa]: https://bioconductor.org/packages/mogsa
+[limma]: https://bioconductor.org/packages/limma
+[BiocStyle]: https://bioconductor.org/packages/BiocStyle
+[knitr]: https://cran.r-project.org/package=knitr
+[rmarkdown]: https://cran.r-project.org/package=rmarkdown

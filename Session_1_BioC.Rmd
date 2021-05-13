@@ -1,0 +1,301 @@
+---
+title: "Bioconductor infrastructures"
+author: 
+  - name: Juan R Gonzalez
+    affiliation: 
+    - Bioinformatics Research Group in Epidemiology, Barcelona Institute for Global Health, Spain
+    email: juanr.gonzalez@isglobal.org
+date: "May, 2021"
+output:
+  BiocStyle::html_document:
+    toc: yes
+    toc_depth: 3
+  BiocStyle::pdf_document:
+    fig_caption: yes
+    toc_depth: 3
+abstract: Brief introduction to some of the main Bioconductor Bioconductor data structures (`ExpressionSet` and `SummarizedExperiments`).    
+---
+
+```{r style, echo = FALSE, results = 'asis'}
+options(width=120)
+knitr::opts_chunk$set(cache=TRUE, fig.align = TRUE, 
+                      warning = FALSE,
+                      message = FALSE, comment = "")
+```
+
+# Gettig started
+This document can be reproduced by using the R code and the  data (for illustrating purposes and for the exercises) that are available here: https://github.com/isglobal-brge/short_course_omic_R
+
+
+# Global description
+
+It is assumed that people who read this material are familiar with omic association analyses (GWAS, gene expression, methylation, RNA-seq, ...). For this short course, we have created different vignettes to: 
+
+1. Provide a global overview about Bioconductor and some of the infrastructures used to encapsulate omic data; 
+2. Perform differential analyses that can be used for both transcriptomic and epigenomic data; 
+3. Visualize significant results using circos plots; and 
+4. Perform enrichment analysis
+
+This short course can be seen as an brief introduction of what we can do with R/Bioconductor packages in the particular case of analyzing transcriptomic and/or epigenomic data. Other association analyses such as genomic (e.g. GWAS) or multi-omic data integration can be seen in our book: https://isglobal-brge.github.io/book_omic_association/
+
+![Omic association analyses](figures/cover_book.png)
+
+
+# Introduction
+
+This lecture offers a summary of two data structures (`ExpressionSet` and `SummarizedExperiments`) that are implemented in Bioconductor for dealing with transcriptomic or epigenomic data. Omic data are typically composed of three datasets: one containing the actual high-dimensional data of omic variables per individuals, annotation data that specifies the characteristics of the variables and phenotypic information that encodes the subject's traits of interest, covariates and sampling characteristics. For instance, transcriptomic data can be stored in a `ExpressionSet` object, which is a data structure that contains the transcription values of individuals at each transcription probe, the genomic information for the transcription probes and the phenotypes of the individuals. Specific data is accessed, processed and analyzed with specific functions from diverse packages, conceived as methods acting on the `ExpressionSet` objects. 
+
+
+![Data in Bioconductor](figures/eSet_vs_dataframe.png)
+
+# Bioconductor
+
+- [Bioconductor](https://bioconductor.org/)'s goal: Analysis and comprehension of high-throughput genomic data
+
+- Statistical analysis: large data, technological artifacts, designed experiments; rigorous
+
+- Comprehension: biological context, visualization, reproducibility
+
+- High-throughput
+    - Sequencing: RNASeq, ChIPSeq, variants, copy number, ...
+    - Microarrays: expression, SNP, ...
+    - Flow cytometry, proteomics, images, ...
+
+
+## Packages, vignettes, work flows, ...
+
+- 1649 software packages (Jan'19); also...
+    - 'Annotation' packages -- static data bases of identifier maps,gene models, pathways, etc; e.g., `TxDb.Hsapiens.UCSC.hg19.knownGene`
+    - 'Experiment packages -- data sets used to illustrate software functionality, e.g., `airway`
+- Discover and navigate via `biocViews`
+- Package 'landing page'
+    - Title, author / maintainer, short description, citation, installation instructions, ..., download statistics
+- All user-visible functions have help pages, most with runnable examples
+
+
+## Vignettes
+
+- 'Vignettes' an important feature in Bioconductor -- narrative documents illustrating how to use the package, with integrated code
+- 'Release' (every six months) and 'devel' branches
+- [Support site](https://support.bioconductor.org);
+  [videos](https://www.youtube.com/user/bioconductor), [recent courses](https://bioconductor.org/help/course-materials/)
+
+
+## Bioconductor packages installation
+
+```{r install, eval=FALSE}
+install.packages("BiocManager")
+library(BiocManager)
+install(c("DESeq2", "org.Hs.eg.db"))
+
+# or
+
+BiocManager::install("DESeq2")
+```
+    
+Remember that Github packages can be install by
+
+```{r install_github, eval=FALSE}
+install.packages("devtools")
+devtools::install_github("isglobal-brge/SNPassoc")
+```
+
+
+Once installed, the package can be loaded into an R session
+
+```{r require}
+library(GenomicRanges)
+```
+
+and the help system queried interactively, as outlined above:
+
+```{r help-bioc, eval=FALSE}
+help(package="GenomicRanges")
+vignette(package="GenomicRanges")
+vignette(package="GenomicRanges",
+         "GenomicRangesHOWTOs")
+?GRanges
+```
+
+# `ExpressionSet` objects
+
+- `ExpressionSet` was one of the first implementations of Bioconductor to manage \emph{omic} experiments. 
+
+- It is discouraged in Bioconductor's guidelines for the development of current and future packages
+
+- However, most publicly available data is available in this structure while future packages are still required to be able to upload and operate with it. 
+
+- The rows of \emph{omic} data are features and columns are subjects. 
+
+- Information is coordinated across the object's slots. For instance, subsetting samples in the assay matrix automatically subsets them in the phenotype metadata. 
+
+
+GEO repository (https://www.ncbi.nlm.nih.gov/geo/) contains thousands of transcriptomic experiments that are available in `ExpressionSet` format. Data can be loaded into R by: 
+
+```{r download_geo, eval=FALSE}
+library(GEOquery)
+gse69683 <- getGEO("GSE69683", destdir = ".")
+gse69683.expr <- gse69683[[1]]
+```
+ 
+You can directly loaded it into R with:
+
+```{r load_geo}
+load("data/GSE69683.Rdata")
+```
+
+
+This is how an `ExpressionSet` looks like:
+
+```{r show_geo}
+gse69683.expr
+```
+
+- `gse69683.expr` is an object of class `ExpressionSet` that has three main slots:
+
+  - Transcriptomic data is stored in the `assayData`
+
+  - Phenotypes (i.e. covariates) are in `phenoData` 
+
+  - Probe annotation in `featuredData`. 
+
+  - There are three other slots `protocolData`, `experimentData` and `annotation` with other information
+     
+
+Gene expression data can be retrieved by
+     
+```{r exprs} 
+expr <- exprs(gse69683.expr)
+dim(expr)
+expr[1:5,1:5]
+```
+
+
+Phenotypic data (i.e. covariates) are accesed by
+
+```{r pheno}
+pheno <- phenoData(gse69683.expr)
+pheno
+colnames(pheno)[1:10]
+```
+
+
+Data are properly organized. So that, we can run any statistical model or method you want
+
+```{r show}
+group <- pheno$characteristics_ch1
+table(group)
+```
+
+
+```{r boxplot}
+boxplot(expr["1007_PM_s_at",] ~ group)
+```
+
+
+The `fData` function gets the probes' annotation that will be required to genome data visualization and post-data analysis
+
+```{r get_annot} 
+probes <- fData(gse69683.expr)
+probes[1:5, 1:5]
+``` 
+
+
+Subsetting acts as in any other R object. Let us assume we want to select only healthy individuals
+
+```{r subset_gse}
+sel <- "cohort: Healthy, non-smoking"
+mask <- gse69683.expr$characteristics_ch1%in%sel
+gse <- gse69683.expr[ , mask]
+gse
+```
+
+
+# `SummarizedExperiment` and `RangedSummarizedExperiment`
+
+- It is an extension of `ExpressionSet` objects.
+
+- The `SummarizedExperiment` package contains two classes: `SummarizedExperiment` and `RangedSummarizedExperiment`.
+
+- The fundamental difference between the two classes is that the rows of a `RangedSummarizedExperiment` object represent genomic ranges of interest instead of a DataFrame of feature. The ranges are accesses with `rowRanges()`
+
+NOTE: Altough it is not necessary for this course, we recommend to have a quick look at this [introduction on GenomicRanges](http://rstudio-pubs-static.s3.amazonaws.com/142838_0374b144401c449eb17ed5c2c70cb513.html).
+
+![SummarizedExperiment](figures/sumExp.svg)
+
+
+`airway` package contains an example dataset from an RNA-Seq experiment of read counts per gene for airway smooth muscles. These data are stored in a `RangedSummarizedExperiment` object which contains 8 different experimental and  64,102 gene transcripts.
+
+```{r airway}
+library(SummarizedExperiment)
+data(airway, package="airway")
+se <- airway
+se
+```
+
+
+Experiment data is accessed with `assay()`:
+
+```{r exp_data}
+names(assays(se))
+gene.dat <- assays(se)$counts
+gene.dat[1:5, 1:5]
+```
+
+
+Phenotypic data is accessed with `colData()`:
+
+```{r pheno_data}
+colData(se)
+```
+
+
+Subset for only those samples treated with dexamethasone
+
+```{r pheno_data_treated}
+se[, se$dex == "trt"]
+```
+
+
+We can also subset a `SummarizedExperiment` by a given interval or genomic region
+
+```{r subset_interval}
+roi <- GRanges(seqnames="chr1", ranges=100000:1100000)
+# or
+roi <- GRanges(seqnames="1", IRanges(start=100000,
+                                        end=1100000))
+se.roi <- subsetByOverlaps(se, roi)
+se.roi
+```
+
+It is worth to notice that the chromosome is accessed by using `seqnames="1"` instead of `seqnames="chr1"` since they are annotated in the [NCBI](https://www.ncbi.nlm.nih.gov/) or [Ensembl](https://www.ensembl.org/index.html) style:
+
+```{r chr_style}
+seqlevelsStyle(se.roi)
+```
+
+NOTE: `seqnames="chr1"` corresponds to [UCSC](https://genome.ucsc.edu/) style
+
+--------------------------------------------------
+
+**EXERCISE**: [Recount2](https://jhubiostatistics.shinyapps.io/recount/) provides data for different RNA-seq experiments. These includes data from GTEx or TCGA projects. We have donwloaded a subset of data corresponding to breast cancer and created a variable called `er` which encodes the estrogen receptor status (Negative and Positive). The `SummarizedExperiment` object is called `breast` and is available in the file `data_exercises/breast_tcga.Rdata`. Load the data into R and answer the next questions
+
+1. How many samples are in the `SummarizedExperiment` object?
+
+2. And how many genes?
+
+3. Which is the number of samples with positive estrogen receptor status (variable `er`)?
+
+4. Subset the individuals having Negative strogen receptor status and draw a boxplot of the first gene. 
+
+5. Create a `SummarizedExperiment` object of the genomic region chr6:151.2-151.8Mb. How many genes are in that region? How many of them are annotated? That is, how many of them have a gene symbol name (HINT: use `rowRanges()` function and remember that `mcols()` function is used to get acccess to columns in a `GRanges` object) ?
+
+
+--------------------------------------------------
+
+# Session info
+
+```{r}
+sessionInfo()
+```
+
