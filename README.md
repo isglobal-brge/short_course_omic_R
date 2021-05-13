@@ -13,7 +13,9 @@ The course include three tutorials that can be found here:
 
 ## R environment
 
-For a friendly R environment and being able to run the proposed examples, [Rstudio](https://rstudio.com/products/rstudio/) is highly recommended.
+Windows users can install R using [this file](https://cran.r-project.org/bin/windows/base/). For a friendly R environment and being able to run the proposed examples and exercises, [Rstudio](https://rstudio.com/products/rstudio/) is highly recommended.
+
+Linux and Mac users can follow instructions available at [CRAN](https://cran.r-project.org/).
 
 Recommended readings from this wiki:
 
