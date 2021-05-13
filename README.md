@@ -3,8 +3,8 @@ This is a short course on omic data analysis with R (2 hours) that is part of th
 
 The course include four tutorials that can be found here:
 
-- [Dealing with omic data in Bioconductor]
-- [Genetic association studies]
+- [Dealing with omic data in Bioconductor](https://rpubs.com/jrgonzalezISGlobal/omicBioC)
+- [Genetic association studies](https://rpubs.com/jrgonzalezISGlobal/SNPassoc)
 - [Transcriptomic and Epigenomic data analyses]
 - [Enrichment analysis]
 
