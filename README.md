@@ -28,10 +28,10 @@ Open RStudio and execute these R instructions
 
 ```
 install.packages("BiocManager")
-BiocManager::install(c("SummarizedExperiment", "GenomicRanges", "GEOquery", "limma",
-                       "MEAL", "EnhancedVolcano", "tweeDEseqCountData", "edgeR",
-                       "breastCancerVDX", "airway", "org.Hs.eg.db", "clusterProfiler",
-                       "enrichplot"))                        
+BiocManager::install(c("SummarizedExperiment", "GenomicRanges", "GEOquery", 
+                       "limma", "MEAL", "EnhancedVolcano", "tweeDEseqCountData", 
+                       "edgeR", "breastCancerVDX", "airway", "org.Hs.eg.db", 
+                       "clusterProfiler", "enrichplot"))                        
 ```
 
 Maybe for those working in Windows [Rtools](https://cran.r-project.org/bin/windows/Rtools/) could be needed.
