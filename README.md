@@ -1,13 +1,14 @@
 # Course on omic data analysis with R 
 This is a short course on omic data analysis with R (2 hours) that is part of the ALEXS [Alpine Exposome Summer School](https://exposomesummerschool.com/) organized by Inserm (IAB Grenoble and IRSET Rennes) and supported by Région Auvergne Rhône-Alpes and [ATHLETE H2020 Project](https://athleteproject.eu/) (Grant agreement No 874583).
 
-The course include four tutorials that can be found here:
+The course include three tutorials (including videos) that can be found here:
 
 - [Dealing with omic data in Bioconductor](https://rpubs.com/jrgonzalezISGlobal/omicBioC)
-- [Genetic association studies](https://rpubs.com/jrgonzalezISGlobal/SNPassoc)
 - [Transcriptomic and Epigenomic data analyses](https://rpubs.com/jrgonzalezISGlobal/transcriptomic_analyses)
 - [Enrichment analysis](https://rpubs.com/jrgonzalezISGlobal/enrichment)
 
+Those who are interested in performing genetic association analyses can read this vignette:
+- [Genetic association studies](https://rpubs.com/jrgonzalezISGlobal/SNPassoc)
 
 # Prerequisites
 
